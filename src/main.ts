@@ -27,7 +27,7 @@ import { AutoCloudLayout } from './cloud/index.ts';
 import './cloud/style.css';
 
 // 使用示例
-const cloudContainer = document.querySelector('.cloud') as HTMLDivElement;
+const [cloudContainer, secondCloudContainer] = Array.from(document.querySelectorAll('.cloud')) as [HTMLDivElement, HTMLDivElement];
 
 const config = {
   baseFontSize: 14,
@@ -36,7 +36,10 @@ const config = {
   horizontalGap: 15,
   verticalGap: 20,
   fontFamily: 'Segoe UI',
-  itemPadding: 6
+  itemPadding: 6,
+  seed: 12345
 };
 
 const cloudLayout = new AutoCloudLayout(cloudContainer, config);
+
+const cloudLayout2 = new AutoCloudLayout(secondCloudContainer, config);
