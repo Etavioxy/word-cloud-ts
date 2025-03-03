@@ -28,7 +28,9 @@ class AutoCloudLayout {
   }> = [];
   private goldenAngle: number = 137.508;
   private containerRect!: DOMRect;
+  private baseFontSize = 16;
 
+  // Listen for window size changes and refresh layout
   constructor(
     container: HTMLDivElement,
     config: Partial<CloudConfig> = {}
@@ -44,8 +46,15 @@ class AutoCloudLayout {
       seed: 0,
       ...config,
     };
-
     this.initialize();
+    window.addEventListener('resize', () => {
+      //debug
+      console.log('resize');
+      
+      this.containerRect = this.container.getBoundingClientRect();
+      this.layoutItems();
+      this.adjustScale();
+    });
   }
 
   private initialize(): void {
@@ -97,25 +106,11 @@ class AutoCloudLayout {
   }
 
   private precomputeSizes(): void {
-    const measurer = document.createElement('div');
-    measurer.style.cssText = `
-      position: absolute;
-      visibility: hidden;
-      left: -9999px;
-      display: inline-block!important;
-    `;
-
     this.items.forEach(item => {
-      const clone = item.cloneNode(true) as CloudItemElement;
-      measurer.appendChild(clone);
-      const rect = clone.getBoundingClientRect();
+      const rect = item.getBoundingClientRect();
       item.dataset.__width = `${rect.width + this.config.itemPadding * 2}`;
       item.dataset.__height = `${rect.height + this.config.itemPadding * 2}`;
-      measurer.removeChild(clone);
     });
-
-    document.body.appendChild(measurer);
-    setTimeout(() => document.body.removeChild(measurer), 0);
   }
 
   private adjustItemStyles(): void {
@@ -181,6 +176,7 @@ class AutoCloudLayout {
     });
   }
 
+  // After all items are positioned, set the container's fontSize
   private layoutItems(): void {
     this.placedItems = [];
     const containerWidth = this.containerRect.width;
@@ -193,8 +189,8 @@ class AutoCloudLayout {
 
       for (const {x, y} of spiral) {
         // 边界检查
-        if (x - width/2 < 0 || x + width/2 > containerWidth) continue;
-        if (y - height/2 < 0 || y + height/2 > containerHeight) continue;
+        //if (x - width/2 < 0 || x + width/2 > containerWidth) continue;
+        //if (y - height/2 < 0 || y + height/2 > containerHeight) continue;
 
         if (!this.checkCollision(x, y, width, height)) {
           this.applyPosition(el, x, y, width, height);
@@ -205,8 +201,10 @@ class AutoCloudLayout {
     });
 
     this.container.style.height = `${containerHeight}px`;
+    this.adjustScale();
   }
 
+  // Convert px to em and explicitly set position using em units
   private applyPosition(
     el: CloudItemElement,
     x: number,
@@ -214,28 +212,36 @@ class AutoCloudLayout {
     width: number,
     height: number
   ): void {
+    const leftEm = (x - width/2) / this.baseFontSize;
+    const topEm = (y - height/2) / this.baseFontSize;
+    const wEm = (width - this.config.itemPadding * 2) / this.baseFontSize;
+    const hEm = (height - this.config.itemPadding * 2) / this.baseFontSize;
+
     Object.assign(el.style, {
       position: 'absolute',
-      left: `${x - width/2}px`,
-      top: `${y - height/2}px`,
-      width: `${width - this.config.itemPadding*2}px`,
-      height: `${height - this.config.itemPadding*2}px`,
-      padding: `${this.config.itemPadding}px`,
+      left: `${leftEm}em`,
+      top: `${topEm}em`,
+      width: `${wEm}em`,
+      height: `${hEm}em`,
+      padding: `${this.config.itemPadding / this.baseFontSize}em`,
       boxSizing: 'content-box',
       transition: 'transform 0.2s',
       transform: 'translate(0,0)'
     });
   }
 
-  public refresh(): void {
-    this.containerRect = this.container.getBoundingClientRect();
-    this.collectItems();
-    this.precomputeSizes();
-    this.layoutItems();
+  // Adjust the container's fontSize based on final bounding box
+  private adjustScale(): void {
+    const placedRect = this.container.getBoundingClientRect();
+    if (placedRect.width === 0 || placedRect.height === 0) return;
+
+    const scaleW = this.containerRect.width / placedRect.width;
+    const scaleH = this.containerRect.height / placedRect.height;
+    const scale = Math.min(scaleW, scaleH);
+
+    // Scale root container via font-size in em
+    this.container.style.fontSize = `${scale}em`;
   }
 }
 
 export { AutoCloudLayout };
-
-//!TODO 响应窗口变化
-//window.addEventListener('resize', () => cloudLayout.refresh());
