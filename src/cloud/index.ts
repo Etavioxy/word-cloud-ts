@@ -2,8 +2,8 @@ interface CloudItemElement {
   el: HTMLSpanElement;
   dataset: {
     weight: number;
-    __width: string;
-    __height: string;
+    __width: number;
+    __height: number;
     __fontSize: string;
     __color: string;
   };
@@ -34,14 +34,21 @@ class AutoCloudLayout {
     width: number;
     height: number;
   }> = [];
+  private placed: {
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
+  } = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+  private placedWidth: number = 0;
+  private placedHeight: number = 0;
   private goldenAngle: number = 137.508;
   private containerRect!: DOMRect;
   private baseFontSize = 16;
 
-  // 新增属性
   private debugMode = false;
   private debugOverlay!: HTMLCanvasElement;
-  private debugInfo!: HTMLDivElement;
+  private debugInfo!: HTMLPreElement;
 
   // Listen for window size changes and refresh layout
   constructor(
@@ -57,21 +64,12 @@ class AutoCloudLayout {
       fontFamily: 'Arial',
       itemPadding: 4,
       seed: 0,
-      // Default size range: tags with lower weight get around 12px, higher weight get up to 36px
       sizeRange: [12, 36],
-      // Defaults for the new properties:
-      colorSaturation: config.colorSaturation ?? 90,
-      lightnessRange: config.lightnessRange ?? [40, 70],
+      colorSaturation: 90,
+      lightnessRange: [40, 70],
       ...config,
     };
     this.initialize();
-    window.addEventListener('resize', () => {
-      // debug
-      console.log('resize');
-
-      this.containerRect = this.container.getBoundingClientRect();
-      this.adjustScale();
-    });
   }
 
   private initialize(): void {
@@ -81,11 +79,12 @@ class AutoCloudLayout {
     this.debugOverlay.style.top = '0';
     this.debugOverlay.style.left = '0';
     this.debugOverlay.style.pointerEvents = 'none';
-    this.debugInfo = document.createElement('div');
+    this.debugInfo = document.createElement('pre');
     this.debugInfo.style.position = 'absolute';
     this.debugInfo.style.top = '0';
     this.debugInfo.style.left = '0';
     this.container.appendChild(this.debugOverlay);
+    this.container.appendChild(this.debugInfo);
 
     this.prepareDOMStructure();
     this.collectItems();
@@ -116,8 +115,8 @@ class AutoCloudLayout {
       el: el as HTMLSpanElement,
       dataset: {
         weight: Number(el.getAttribute('weight')),
-        __width: '',
-        __height: '',
+        __width: 0,
+        __height: 0,
         __fontSize: '',
         __color: ''
       }
@@ -149,8 +148,8 @@ class AutoCloudLayout {
     this.items.forEach(item => {
       item.dataset.weight = Number(item.dataset.weight);
       const rect = item.el.getBoundingClientRect();
-      item.dataset.__width = `${rect.width + this.config.itemPadding * 2}`;
-      item.dataset.__height = `${rect.height + this.config.itemPadding * 2}`;
+      item.dataset.__width = rect.width;
+      item.dataset.__height = rect.height;
     });
   }
 
@@ -169,9 +168,9 @@ class AutoCloudLayout {
       const computedFontSize = minFont + normalized * (maxFont - minFont);
       const hashVal = this.hash(item.el.textContent || '');
       const computedColor = this.generateVibrantColor(hashVal, normalized);
-
-      //debug
-      console.log("normalized-weight:" + normalized, weight, minWeight, weightRange);
+      
+      item.dataset.__width *= 1 + normalized;
+      item.dataset.__height *= 1 + normalized;
 
       // el.style.cssText = `
       //   width: ${this.config.imageSize}px;
@@ -203,8 +202,8 @@ class AutoCloudLayout {
 
     while (true) {
       yield {
-        x: this.containerRect.width / 2 + radius * Math.cos(angle * Math.PI / 180),
-        y: this.containerRect.height / 2 + radius * Math.sin(angle * Math.PI / 180)
+        x: radius * Math.cos(angle * Math.PI / 180),
+        y: radius * Math.sin(angle * Math.PI / 180)
       };
       radius += 0.5;
     }
@@ -237,8 +236,8 @@ class AutoCloudLayout {
 
     // 先按原逻辑把 item 计算并存入 placedItems
     this.items.forEach((el, index) => {
-      const width = parseFloat(el.dataset.__width!);
-      const height = parseFloat(el.dataset.__height!);
+      const width = el.dataset.__width!;
+      const height = el.dataset.__height!;
       const spiral = this.spiralGenerator(index);
 
       for (const { x, y } of spiral) {
@@ -260,27 +259,23 @@ class AutoCloudLayout {
       }
     });
 
-    this.container.style.height = `${containerHeight}px`;
-
     // 根据边界计算所需缩放和平移，让所有 item 都能包含在内部
-    const placedWidth = maxX - minX;
-    const placedHeight = maxY - minY;
-    if (placedWidth > 0 && placedHeight > 0) {
-      const scaleW = containerWidth / placedWidth;
-      const scaleH = containerHeight / placedHeight;
-      const scale = Math.min(scaleW, scaleH);
+    this.placed = { minX, minY, maxX, maxY };
+    this.placedWidth = maxX - minX;
+    this.placedHeight = maxY - minY;
+    this.placedItems.map(item => {
+      item.x -= minX;
+      item.y -= minY;
+      return item;
+    });
+    
+    this.container.style.width = this.placedWidth + 'px';
+    this.container.style.height = this.placedHeight + 'px';
 
-      // 这里可以对所有 item 做统一缩放/平移
-      this.placedItems.forEach((item, i) => {
-        // 缩放后新的中心
-        const scaledX = (item.x - minX) * scale;
-        const scaledY = (item.y - minY) * scale;
-        // 等效重新应用位置
-        const w = item.width * scale;
-        const h = item.height * scale;
-        this.applyPosition(this.items[i], scaledX, scaledY, w, h);
-      });
-    }
+    // 这里可以对所有 item 做统一缩放/平移
+    this.placedItems.forEach((item, i) => {
+      this.applyPosition(this.items[i], item.x, item.y, item.width, item.height);
+    });
   }
 
   // Convert px to em and explicitly set position using em units
@@ -292,48 +287,30 @@ class AutoCloudLayout {
     height: number
   ): void {
     const el = item.el;
-    const leftEm = (x - width / 2) / this.baseFontSize;
-    const topEm = (y - height / 2) / this.baseFontSize;
-    const wEm = (width - this.config.itemPadding * 2) / this.baseFontSize;
-    const hEm = (height - this.config.itemPadding * 2) / this.baseFontSize;
+    const leftPx = x;
+    const topPx = y;
+    const wPx = width;
+    const hPx = height;
 
     const fontSizePx = parseFloat(el.dataset.__fontSize!);
     const color = el.dataset.__color!;
 
-    //debug
-    console.log("fontSizePx : Color:" + fontSizePx + color);
-
     Object.assign(el.style, {
       position: 'absolute',
-      left: `${leftEm}em`,
-      top: `${topEm}em`,
-      width: `${wEm}em`,
-      height: `${hEm}em`,
-      padding: `${this.config.itemPadding / this.baseFontSize}em`,
+      left: `${leftPx}px`,
+      top: `${topPx}px`,
+      width: `${wPx}px`,
+      height: `${hPx}px`,
+      padding: `${this.config.itemPadding}px`,
       boxSizing: 'content-box',
       transition: 'transform 0.2s',
-      transform: 'translate(0,0)',
-      font: `${fontSizePx / 16}em ${this.config.fontFamily}`,
+      fontSize: `${fontSizePx}px`,
       color,
-      verticalAlign: 'middle'
     });
 
     // 如果需要强制 inline-block，可以这样：
     el.style.setProperty('display', 'inline-block', 'important');
 
-  }
-
-  // Adjust the container's fontSize based on final bounding box
-  private adjustScale(): void {
-    const placedRect = this.container.getBoundingClientRect();
-    if (placedRect.width === 0 || placedRect.height === 0) return;
-
-    const scaleW = this.containerRect.width / placedRect.width;
-    const scaleH = this.containerRect.height / placedRect.height;
-    const scale = Math.min(scaleW, scaleH);
-
-    // Scale root container via font-size in em
-    this.container.style.fontSize = `${scale * 16}px`;
   }
 
   private debugIntervalId: number | null = null;
@@ -352,8 +329,12 @@ class AutoCloudLayout {
 
       // 创建新定时器并保存ID
       this.debugIntervalId = setInterval(() => {
-        this.debugInfo.textContent = 'Debug mode enabled';
-      }, 1000);
+        this.debugInfo.textContent = `info: container ${this.containerRect.width} x ${this.containerRect.height} content ${this.placedWidth} x ${this.placedHeight}\n
+        ${this.placed.minX} ~ ${this.placed.maxX} ${this.placed.minY} ~ ${this.placed.maxY}
+        `;
+      }, 100);
+
+      this.container.style.backgroundColor = 'rgba(0,0,1,0.2)';
     } else {
       const ctx = this.debugOverlay.getContext('2d');
       ctx && ctx.clearRect(0, 0, this.debugOverlay.width, this.debugOverlay.height);
@@ -366,6 +347,7 @@ class AutoCloudLayout {
 
       // 立即清空调试信息
       this.debugInfo.textContent = '';
+      this.container.style.backgroundColor = '';
     }
   }
 
@@ -382,10 +364,9 @@ class AutoCloudLayout {
     // 1. 绘制所有已放置 item 的外框
     ctx.strokeStyle = 'red';
     this.placedItems.forEach(({ x, y, width, height }) => {
-      console.warn("debug: drawRect");
       ctx.strokeRect(
-        x - width / 2,
-        y - height / 2,
+        x + this.config.itemPadding,
+        y + this.config.itemPadding,
         width,
         height
       );

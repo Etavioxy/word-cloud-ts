@@ -43,5 +43,6 @@ const config = {
 const cloudLayout = new AutoCloudLayout(cloudContainer, config);
 
 cloudLayout.toggleDebugMode();
+//window.c = cloudLayout;
 
 const cloudLayout2 = new AutoCloudLayout(secondCloudContainer, config);
