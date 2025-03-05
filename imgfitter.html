@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        .image-container {
+            width: 300px;
+            height: 200px;
+            border: 2px solid #ccc;
+            margin: 20px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .scale-wrapper {
+            position: absolute;
+            transform-origin: 0 0;
+        }
+        
+        .original-img {
+            display: block; /* 消除图片底部间隙 */
+        }
+    </style>
+</head>
+<body>
+    <button onclick="toggleAspectAll()">切换容器比例</button>
+    <button onclick="randomImageAll()">随机图片</button>
+
+    <div class="image-container">
+        <div class="scale-wrapper">
+          <div>
+            <img src="https://picsum.photos/800/600" class="original-img" alt="Sample">
+          </div>
+        </div>
+    </div>
+
+    <div class="image-container">
+        <div class="scale-wrapper">
+          <div style="height: 600px; width: 500px; position: relative; font-size: 40px; background-color: aliceblue;">
+            <div style="position:absolute;top:100px;left:200px">hello</div>
+            <div style="position:absolute;top:400px;left:100px">world</div>
+            <div style="position:absolute;top:150px;left:350px">nihao</div>
+          </div>
+        </div>
+    </div>
+
+    <script>
+        class ScaleAdapter {
+            constructor(container) {
+              console.log(container);
+                this.container = container;
+                this.wrapper = container.querySelector('.scale-wrapper');
+                this.content = this.wrapper.children[0];
+                this.img = container.querySelector('img');
+                this.observer = null;
+                this.init();
+            }
+
+            init() {
+                // 初始化时强制计算布局
+                this.calculateScale();
+                
+                // 设置图片加载监听
+                if (this.img && !this.img.complete) {
+                    this.img.onload = () => this.calculateScale();
+                }
+
+                // 响应式监听
+                this.setupResizeObserver();
+            }
+
+            calculateScale() {
+                const containerWidth = this.container.clientWidth;
+                const containerHeight = this.container.clientHeight;
+                //console.log(this.content, this.content.offsetHeight, this.content.offsetWidth, this.img.height, this.img.width);
+                const contentWidth = this.content.offsetWidth || this.img.naturalWidth;
+                const contentHeight = this.content.offsetHeight || this.img.naturalHeight;
+                
+                // 计算缩放比例
+                const widthRatio = containerWidth / contentWidth;
+                const heightRatio = containerHeight / contentHeight;
+                const scale = Math.min(widthRatio, heightRatio);
+
+                // 计算实际显示尺寸
+                const scaledWidth = contentWidth * scale;
+                const scaledHeight = contentHeight * scale;
+
+                // 应用变换
+                this.wrapper.style.transform = `scale(${scale})`;
+                
+                // 居中定位
+                this.wrapper.style.left = `${(containerWidth - scaledWidth) / 2}px`;
+                this.wrapper.style.top = `${(containerHeight - scaledHeight) / 2}px`;
+            }
+
+            setupResizeObserver() {
+                if (window.ResizeObserver) {
+                    this.observer = new ResizeObserver(entries => {
+                        entries.forEach(entry => this.calculateScale());
+                    });
+                    this.observer.observe(this.container);
+                } else {
+                    window.addEventListener('resize', () => {
+                        this.calculateScale();
+                    });
+                }
+            }
+        }
+
+        // 初始化
+        const containers = Array.from(document.querySelectorAll('.image-container'));
+        const adapters = containers.map(x => new ScaleAdapter(x));
+        
+        function toggleAspectAll() {
+            containers.forEach(toggleAspect);
+        }
+        function randomImageAll() {
+            adapters.forEach(randomImage);
+        }
+
+        // 测试功能
+        function toggleAspect(container) {
+            container.style.width = `${200 + Math.random() * 300}px`;
+            container.style.height = `${150 + Math.random() * 250}px`;
+        }
+
+        function randomImage(adapter) {
+            if (!adapter.img || !adapter.img.src) {
+                return;
+            }
+            const newImg = new Image();
+            const width = 400 + Math.floor(Math.random() * 800);
+            const height = 300 + Math.floor(Math.random() * 600);
+            newImg.src = `https://picsum.photos/${width}/${height}`;
+            
+            newImg.onload = () => {
+                adapter.img.src = newImg.src;
+                adapter.calculateScale();
+            };
+        }
+    </script>
+</body>
+</html>
