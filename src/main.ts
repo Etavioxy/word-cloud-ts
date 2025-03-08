@@ -24,7 +24,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 setupCounter(document.querySelector<HTMLButtonElement>('#counter')!)
 
 import { AutoCloudLayout } from './cloud/index.ts';
-import './cloud/style.css';
+//import './cloud/style.css';
 
 // 使用示例
 const [cloudContainer, secondCloudContainer] = Array.from(document.querySelectorAll('.cloud')) as [HTMLDivElement, HTMLDivElement];
