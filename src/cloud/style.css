@@ -6,10 +6,17 @@
 }
 
 .cloud-item {
+  width: fit-content;
   transition: all 0.3s ease;
   background-color: #242424;
   border-radius: 4px;
   /* box-shadow: 0 1px 3px rgba(0,0,0,0.1); */
+}
+
+.cloud-item img {
+  width: 1em;
+  height: 1em;
+  object-fit: cover;
 }
 
 .cloud-item:hover {

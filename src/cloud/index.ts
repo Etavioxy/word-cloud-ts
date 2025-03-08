@@ -13,7 +13,6 @@ interface CloudConfig {
   baseFontSize: number;
   fontSizeScale: number;
   imageSize: number;
-  spacing: number;
   fontFamily: string;
   itemPadding: number;
   seed?: number;
@@ -60,9 +59,8 @@ class AutoCloudLayout {
       baseFontSize: 16,
       fontSizeScale: 2,
       imageSize: 24,
-      spacing: 10,
       fontFamily: 'Arial',
-      itemPadding: 4,
+      itemPadding: 16,
       seed: 0,
       sizeRange: [12, 36],
       colorSaturation: 90,
@@ -165,12 +163,15 @@ class AutoCloudLayout {
     this.items.forEach(item => {
       const weight = Number(item.dataset.weight);
       const normalized = (weight - minWeight) / weightRange;
+      //get original fontSize
+      const fontSize = parseFloat(window.getComputedStyle(item.el).fontSize);
       const computedFontSize = minFont + normalized * (maxFont - minFont);
       const hashVal = this.hash(item.el.textContent || '');
       const computedColor = this.generateVibrantColor(hashVal, normalized);
+      const scale = computedFontSize / fontSize;
       
-      item.dataset.__width *= 1 + normalized;
-      item.dataset.__height *= 1 + normalized;
+      item.dataset.__width *= scale;
+      item.dataset.__height *= scale;
 
       // el.style.cssText = `
       //   width: ${this.config.imageSize}px;
@@ -196,6 +197,7 @@ class AutoCloudLayout {
   }
 
   // 螺旋线
+  //!现在的算法是，在螺旋线上连续取n个点，然后检查是否有碰撞，如果有则向外加0.5半径
   private *spiralGenerator(attempt: number): Generator<{ x: number, y: number }> {
     let radius = 2.5 * Math.sqrt(attempt);
     const angle = attempt * this.goldenAngle + this.config.seed;
@@ -216,10 +218,10 @@ class AutoCloudLayout {
     height: number
   ): boolean {
     return this.placedItems.some(item => {
-      const dx = Math.abs(x - item.x);
-      const dy = Math.abs(y - item.y);
-      return dx < (width + item.width) / 2 + this.config.spacing &&
-        dy < (height + item.height) / 2 + this.config.spacing;
+      const dx = Math.abs(x + width / 2 - item.x - item.width / 2);
+      const dy = Math.abs(y + height / 2 - item.y - item.height / 2);
+      return dx < (width + item.width) / 2 + this.config.itemPadding * 2 &&
+        dy < (height + item.height) / 2 + this.config.itemPadding * 2;
     });
   }
 
@@ -246,10 +248,10 @@ class AutoCloudLayout {
           this.placedItems.push({ x, y, width, height });
 
           // 更新边界统计
-          const left = x - width / 2;
-          const top = y - height / 2;
-          const right = x + width / 2;
-          const bottom = y + height / 2;
+          const left = x - this.config.itemPadding;
+          const top = y - this.config.itemPadding;
+          const right = x + width + this.config.itemPadding;
+          const bottom = y + height + this.config.itemPadding;
           if (left < minX) minX = left;
           if (top < minY) minY = top;
           if (right > maxX) maxX = right;
@@ -371,6 +373,7 @@ class AutoCloudLayout {
         height
       );
     });
+    console.log(this.placedItems);
 
     // 2. 简单展示螺旋探测位置（示例：某个 item 的探测整体）
     ctx.strokeStyle = 'blue';
